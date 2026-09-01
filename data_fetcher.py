@@ -47,4 +47,3 @@ def fetch_crypto_fear_greed():
     except:
         return "50", "Neutral"
     return "50", "Neutral"
-```
