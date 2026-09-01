@@ -1,32 +1,58 @@
 import streamlit as st
 import pandas as pd
+
 from data_fetcher import (
+    search_crypto,
     fetch_crypto_market,
     fetch_us_stocks,
     fetch_crypto_fear_greed
 )
 
+
+# =========================================================
+# PAGE CONFIG
+# =========================================================
+
 st.set_page_config(
     page_title="Capi | Multi-Market AI",
     page_icon="⚡",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+
+# =========================================================
+# STYLE
+# =========================================================
 
 st.markdown("""
 <style>
+
 .stApp {
     background-color: #07090E;
     color: #E2E8F0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
 }
 
 .luxe-header {
-    background: linear-gradient(180deg, #0F172A 0%, #07090E 100%);
+    background:
+        linear-gradient(
+            180deg,
+            #0F172A 0%,
+            #07090E 100%
+        );
     padding: 35px 20px;
     border-radius: 16px;
     border: 1px solid #1E293B;
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
 }
 
 .luxe-title {
@@ -45,12 +71,20 @@ st.markdown("""
     letter-spacing: 2px;
 }
 
+.search-box {
+    background: #0D1117;
+    border: 1px solid #21262D;
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
 div[data-testid="stMetric"] {
     background-color: #0D1117;
     border: 1px solid #21262D;
     padding: 20px;
     border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
 }
 
 .luxe-ai-box {
@@ -60,26 +94,40 @@ div[data-testid="stMetric"] {
     padding: 25px;
     border-radius: 12px;
     margin-top: 25px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
 }
 
-.stButton>button {
+.status-box {
+    background: #0D1117;
+    border: 1px solid #21262D;
+    padding: 12px 16px;
+    border-radius: 10px;
+    color: #94A3B8;
+    font-size: 13px;
+}
+
+.stButton > button {
     background: #FFFFFF !important;
     color: #000000 !important;
     font-weight: 700 !important;
     border-radius: 8px !important;
     border: none !important;
-    padding: 12px 24px !important;
+    padding: 10px 20px !important;
     transition: all 0.2s ease;
 }
 
-.stButton>button:hover {
+.stButton > button:hover {
     background: #E2E8F0 !important;
     transform: translateY(-1px);
 }
+
 </style>
 """, unsafe_allow_html=True)
 
+
+# =========================================================
+# HEADER
+# =========================================================
 
 st.markdown("""
 <div class="luxe-header">
@@ -91,6 +139,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# =========================================================
+# SIDEBAR
+# =========================================================
+
 st.sidebar.markdown("### 🌐 Market Selection")
 
 market_type = st.sidebar.radio(
@@ -98,27 +150,11 @@ market_type = st.sidebar.radio(
     ["Cryptocurrency", "US Equities"]
 )
 
+st.sidebar.markdown("---")
 
-crypto_watchlist = {
-    "Bitcoin": "bitcoin",
-    "Ethereum": "ethereum",
-    "Solana": "solana",
-    "Ripple": "ripple",
-    "Cardano": "cardano",
-    "Binance Coin": "binancecoin",
-    "Dogecoin": "dogecoin"
-}
-
-
-us_stocks_watchlist = [
-    "AAPL",
-    "MSFT",
-    "GOOGL",
-    "AMZN",
-    "TSLA",
-    "NVDA",
-    "META"
-]
+if st.sidebar.button("🔄 Refresh Market Data", use_container_width=True):
+    st.cache_data.clear()
+    st.rerun()
 
 
 # =========================================================
@@ -129,170 +165,264 @@ if market_type == "Cryptocurrency":
 
     fng_val, fng_class = fetch_crypto_fear_greed()
 
-    st.sidebar.markdown("---")
-
     st.sidebar.metric(
-        "Market Sentiment (F&G)",
+        "Market Sentiment",
         f"{fng_val}/100",
         fng_class
     )
 
     st.markdown("### 🪙 Digital Assets Feed")
 
-    ids = list(crypto_watchlist.values())
+    st.markdown(
+        '<div class="search-box">',
+        unsafe_allow_html=True
+    )
 
-    raw_data = fetch_crypto_market(ids)
+    crypto_query = st.text_input(
+        "Search Cryptocurrency",
+        placeholder="Example: Bitcoin, Ethereum, Solana, XRP...",
+        key="crypto_search"
+    )
 
-    if raw_data:
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True
+    )
 
-        display_list = []
-        coin_cache = {}
+    if crypto_query.strip():
 
-        for coin in raw_data:
+        with st.spinner("Searching cryptocurrency market..."):
 
-            change = coin.get(
-                "price_change_percentage_24h",
-                0
-            ) or 0
+            crypto_results = search_crypto(
+                crypto_query.strip()
+            )
 
-            coin_cache[coin["name"]] = {
-                "price": coin["current_price"],
-                "change": change,
-                "high": coin["high_24h"],
-                "low": coin["low_24h"],
-                "sparkline": coin.get(
+        if crypto_results:
+
+            crypto_options = {}
+
+            for coin in crypto_results:
+                crypto_options[
+                    f"{coin['name']} ({coin['symbol'].upper()})"
+                ] = coin["id"]
+
+            selected_label = st.selectbox(
+                "Select Asset:",
+                list(crypto_options.keys())
+            )
+
+            selected_id = crypto_options[selected_label]
+
+            raw_data = fetch_crypto_market(
+                [selected_id]
+            )
+
+            if raw_data:
+
+                coin = raw_data[0]
+
+                price = coin.get("current_price", 0) or 0
+                change = (
+                    coin.get(
+                        "price_change_percentage_24h",
+                        0
+                    ) or 0
+                )
+                high = coin.get("high_24h", price) or price
+                low = coin.get("low_24h", price) or price
+                volume = coin.get("total_volume", 0) or 0
+
+                sparkline = coin.get(
                     "sparkline_in_7d",
                     {}
                 ).get("price", [])
-            }
-
-            display_list.append({
-                "Asset": coin["name"],
-                "Ticker": coin["symbol"].upper(),
-                "Price (USD)": f"${coin['current_price']:,.2f}",
-                "24h Change": f"{change:.2f}%"
-            })
-
-        st.dataframe(
-            pd.DataFrame(display_list),
-            use_container_width=True
-        )
-
-        st.divider()
-
-        st.markdown("### ⚡ Deep AI Asset Analysis")
-
-        chosen_coin = st.selectbox(
-            "Select Asset for Neural Processing:",
-            list(coin_cache.keys())
-        )
-
-        if chosen_coin in coin_cache:
-
-            info = coin_cache[chosen_coin]
-
-            col_a, col_b = st.columns([1, 2])
-
-            with col_a:
-
-                st.metric(
-                    "Current Price",
-                    f"${info['price']:,.2f}",
-                    f"{info['change']:.2f}%"
-                )
-
-                st.metric(
-                    "24h High",
-                    f"${info['high']:,.2f}"
-                )
-
-                st.metric(
-                    "24h Low",
-                    f"${info['low']:,.2f}"
-                )
-
-            with col_b:
-
-                if info["sparkline"]:
-
-                    st.line_chart(
-                        pd.DataFrame({
-                            "Weekly Trend": info["sparkline"]
-                        }),
-                        color="#58A6FF"
-                    )
-
-            if st.button("Execute Neural Decision Engine"):
-
-                with st.spinner(
-                    "Processing market data & neural networks..."
-                ):
-
-                    chg = info["change"]
-
-                    if chg > 2:
-
-                        decision = "STRONG ACCUMULATION (Bullish)"
-                        confidence = "76.4%"
-                        scenario = (
-                            "Upward momentum sustaining toward upper "
-                            "resistance bounds. Recommended trailing stop-loss."
-                        )
-                        accent_color = "#3FB950"
-
-                    elif chg >= 0:
-
-                        decision = "NEUTRAL CONSOLIDATION"
-                        confidence = "61.2%"
-                        scenario = (
-                            "Sideways price action. Awaiting volume "
-                            "breakout before directional scaling."
-                        )
-                        accent_color = "#58A6FF"
-
-                    else:
-
-                        decision = "CAUTION / POTENTIAL CORRECTION"
-                        confidence = "69.1%"
-                        scenario = (
-                            "Downward pressure testing local liquidity "
-                            "zones. Mitigate exposure."
-                        )
-                        accent_color = "#F85149"
 
                 st.markdown(
-                    f"""
-                    <div class="luxe-ai-box"
-                         style="border-left-color: {accent_color};">
-
-                        <h3 style="
-                            color: {accent_color};
-                            margin-top: 0;
-                            font-size: 20px;
-                        ">
-                            ⚡ Capi Neural Report: {chosen_coin}
-                        </h3>
-
-                        <p style="margin: 8px 0;">
-                            <b>Signal Direction:</b> {decision}
-                        </p>
-
-                        <p style="margin: 8px 0;">
-                            <b>Model Confidence:</b> {confidence}
-                        </p>
-
-                        <p style="
-                            margin: 8px 0;
-                            color: #94A3B8;
-                        ">
-                            <b>Strategic Alternative Scenario:</b>
-                            {scenario}
-                        </p>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+                    f"### ⚡ {coin.get('name', selected_label)} "
+                    f"({coin.get('symbol', '').upper()})"
                 )
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                col1.metric(
+                    "Current Price",
+                    f"${price:,.2f}",
+                    f"{change:.2f}%"
+                )
+
+                col2.metric(
+                    "24h High",
+                    f"${high:,.2f}"
+                )
+
+                col3.metric(
+                    "24h Low",
+                    f"${low:,.2f}"
+                )
+
+                col4.metric(
+                    "24h Volume",
+                    f"${volume:,.0f}"
+                )
+
+                st.divider()
+
+                chart_col, info_col = st.columns([2, 1])
+
+                with chart_col:
+
+                    st.markdown("#### 7-Day Price Trend")
+
+                    if sparkline:
+                        st.line_chart(
+                            pd.DataFrame({
+                                "Price": sparkline
+                            }),
+                            use_container_width=True
+                        )
+                    else:
+                        st.info(
+                            "7-day chart data is not available."
+                        )
+
+                with info_col:
+
+                    st.markdown("#### Market Snapshot")
+
+                    market_cap = coin.get(
+                        "market_cap",
+                        0
+                    ) or 0
+
+                    rank = coin.get(
+                        "market_cap_rank"
+                    )
+
+                    st.write(
+                        f"**Market Cap:** "
+                        f"${market_cap:,.0f}"
+                    )
+
+                    st.write(
+                        f"**Market Rank:** "
+                        f"{rank if rank else 'N/A'}"
+                    )
+
+                    st.write(
+                        f"**24h Change:** "
+                        f"{change:.2f}%"
+                    )
+
+                st.divider()
+
+                st.markdown(
+                    "### ⚡ Capi Decision Engine"
+                )
+
+                if st.button(
+                    "Execute Neural Decision Engine",
+                    key="crypto_ai"
+                ):
+
+                    with st.spinner(
+                        "Analyzing market structure..."
+                    ):
+
+                        if change > 2:
+
+                            decision = (
+                                "STRONG POSITIVE MOMENTUM"
+                            )
+                            confidence = "76.4%"
+                            scenario = (
+                                "Positive short-term momentum. "
+                                "Monitor resistance and volume confirmation "
+                                "before increasing exposure."
+                            )
+                            accent = "#3FB950"
+
+                        elif change >= 0:
+
+                            decision = (
+                                "NEUTRAL CONSOLIDATION"
+                            )
+                            confidence = "61.2%"
+                            scenario = (
+                                "Price action remains relatively balanced. "
+                                "A volume expansion may be required "
+                                "to confirm the next directional move."
+                            )
+                            accent = "#58A6FF"
+
+                        else:
+
+                            decision = (
+                                "CAUTION / POTENTIAL CORRECTION"
+                            )
+                            confidence = "69.1%"
+                            scenario = (
+                                "Negative short-term momentum. "
+                                "Watch support levels and avoid treating "
+                                "a single-day move as a confirmed trend."
+                            )
+                            accent = "#F85149"
+
+                    st.markdown(
+                        f"""
+                        <div class="luxe-ai-box"
+                             style="border-left-color:{accent};">
+
+                            <h3 style="
+                                color:{accent};
+                                margin-top:0;
+                            ">
+                                ⚡ Capi Neural Report
+                            </h3>
+
+                            <p>
+                                <b>Asset:</b>
+                                {coin.get('name', selected_label)}
+                            </p>
+
+                            <p>
+                                <b>Signal:</b>
+                                {decision}
+                            </p>
+
+                            <p>
+                                <b>Model Confidence:</b>
+                                {confidence}
+                            </p>
+
+                            <p style="color:#94A3B8;">
+                                <b>Alternative Scenario:</b>
+                                {scenario}
+                            </p>
+
+                            <p style="
+                                color:#64748B;
+                                font-size:12px;
+                            ">
+                                Signal is based on the available
+                                market data and is not financial advice.
+                            </p>
+
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+        else:
+
+            st.warning(
+                "No cryptocurrency matched your search."
+            )
+
+    else:
+
+        st.info(
+            "Search for any cryptocurrency to begin analysis."
+        )
 
 
 # =========================================================
@@ -303,123 +433,169 @@ elif market_type == "US Equities":
 
     st.markdown("### 🇺🇸 US Equities Feed")
 
-    stock_raw = fetch_us_stocks(us_stocks_watchlist)
+    st.markdown(
+        '<div class="search-box">',
+        unsafe_allow_html=True
+    )
 
-    if stock_raw:
+    stock_query = st.text_input(
+        "Enter US Stock Symbol",
+        placeholder="Example: AAPL, NVDA, AMD, JPM, MSFT...",
+        key="stock_search"
+    )
 
-        stock_display = []
-        stock_cache = {}
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True
+    )
 
-        for stck in stock_raw:
+    if stock_query.strip():
 
-            chg = stck.get(
-                "price_change_percentage_24h",
-                0
-            ) or 0
+        ticker = stock_query.strip().upper()
 
-            stock_cache[stck["symbol"]] = {
-                "price": stck["current_price"],
-                "change": chg,
-                "high": stck["high_24h"],
-                "low": stck["low_24h"]
-            }
-
-            stock_display.append({
-                "Ticker": stck["symbol"],
-                "Price (USD)": f"${stck['current_price']:,.2f}",
-                "24h Change": f"{chg:.2f}%"
-            })
-
-        st.dataframe(
-            pd.DataFrame(stock_display),
-            use_container_width=True
+        stock_raw = fetch_us_stocks(
+            [ticker]
         )
 
-        st.divider()
+        if stock_raw:
 
-        st.markdown("### ⚡ Deep AI Equities Analysis")
+            stock = stock_raw[0]
 
-        chosen_stock = st.selectbox(
-            "Select Equity for Neural Processing:",
-            list(stock_cache.keys())
-        )
+            price = stock["current_price"]
+            change = stock["price_change_percentage_24h"]
+            high = stock["high_24h"]
+            low = stock["low_24h"]
+            volume = stock.get("volume", 0)
 
-        if chosen_stock in stock_cache:
+            st.markdown(
+                f"### ⚡ {ticker} Market Intelligence"
+            )
 
-            s_info = stock_cache[chosen_stock]
-
-            c1, c2 = st.columns(2)
+            c1, c2, c3, c4 = st.columns(4)
 
             c1.metric(
                 "Current Price",
-                f"${s_info['price']:,.2f}",
-                f"{s_info['change']:.2f}%"
+                f"${price:,.2f}",
+                f"{change:.2f}%"
             )
 
             c2.metric(
-                "Session Range",
-                f"High: ${s_info['high']:,.2f} | "
-                f"Low: ${s_info['low']:,.2f}"
+                "Session High",
+                f"${high:,.2f}"
             )
 
-            if st.button("Execute Neural Decision Engine"):
+            c3.metric(
+                "Session Low",
+                f"${low:,.2f}"
+            )
+
+            if volume:
+                c4.metric(
+                    "Volume",
+                    f"{volume:,.0f}"
+                )
+            else:
+                c4.metric(
+                    "Volume",
+                    "N/A"
+                )
+
+            st.divider()
+
+            st.markdown(
+                "### ⚡ Capi Decision Engine"
+            )
+
+            if st.button(
+                "Execute Neural Decision Engine",
+                key="stock_ai"
+            ):
 
                 with st.spinner(
-                    "Analyzing order books and volatility indices..."
+                    "Analyzing market structure..."
                 ):
 
-                    s_chg = s_info["change"]
+                    if change > 1:
 
-                    if s_chg > 1:
-
-                        s_decision = "MOMENTUM BUY (Growth)"
-                        s_conf = "73.2%"
-                        s_scen = (
-                            "Outperforming benchmark trends with strong "
-                            "institutional volume backing."
+                        decision = "POSITIVE MOMENTUM"
+                        confidence = "73.2%"
+                        scenario = (
+                            "Short-term momentum is positive. "
+                            "Confirmation from volume and broader market "
+                            "conditions should be monitored."
                         )
-                        s_color = "#3FB950"
+                        accent = "#3FB950"
+
+                    elif change >= 0:
+
+                        decision = "DEFENSIVE HOLD"
+                        confidence = "65.8%"
+                        scenario = (
+                            "Price is relatively stable. "
+                            "A breakout with stronger participation would "
+                            "provide better directional confirmation."
+                        )
+                        accent = "#58A6FF"
 
                     else:
 
-                        s_decision = "DEFENSIVE HOLD"
-                        s_conf = "65.8%"
-                        s_scen = (
-                            "Consolidating near key moving averages. "
-                            "Patience advised."
+                        decision = "CAUTION"
+                        confidence = "68.1%"
+                        scenario = (
+                            "Negative short-term price pressure. "
+                            "Monitor support and market-wide risk sentiment "
+                            "before assuming a sustained downtrend."
                         )
-                        s_color = "#F85149"
+                        accent = "#F85149"
 
                 st.markdown(
                     f"""
                     <div class="luxe-ai-box"
-                         style="border-left-color: {s_color};">
+                         style="border-left-color:{accent};">
 
                         <h3 style="
-                            color: {s_color};
-                            margin-top: 0;
-                            font-size: 20px;
+                            color:{accent};
+                            margin-top:0;
                         ">
-                            ⚡ Capi Neural Report: {chosen_stock}
+                            ⚡ Capi Neural Report: {ticker}
                         </h3>
 
-                        <p style="margin: 8px 0;">
-                            <b>Signal Direction:</b> {s_decision}
+                        <p>
+                            <b>Signal:</b>
+                            {decision}
                         </p>
 
-                        <p style="margin: 8px 0;">
-                            <b>Model Confidence:</b> {s_conf}
+                        <p>
+                            <b>Model Confidence:</b>
+                            {confidence}
+                        </p>
+
+                        <p style="color:#94A3B8;">
+                            <b>Alternative Scenario:</b>
+                            {scenario}
                         </p>
 
                         <p style="
-                            margin: 8px 0;
-                            color: #94A3B8;
+                            color:#64748B;
+                            font-size:12px;
                         ">
-                            <b>Strategic Alternative Scenario:</b>
-                            {s_scen}
+                            Signal is based on available market data
+                            and is not financial advice.
                         </p>
 
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
+
+        else:
+
+            st.error(
+                f"No market data found for ticker: {ticker}"
+            )
+
+    else:
+
+        st.info(
+            "Enter any US stock symbol to begin analysis."
+        )
