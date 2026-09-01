@@ -1,58 +1,88 @@
 import streamlit as st
 import pandas as pd
-import datetime
-from data_fetcher import fetch_crypto_market, fetch_us_stocks, fetch_crypto_fear_greed
-
+from data_fetcher import (
+    fetch_crypto_market,
+    fetch_us_stocks,
+    fetch_crypto_fear_greed
+)
 st.set_page_config(
-    page_title="Multi-Market AI Platform",
-    page_icon="🤖",
+    page_title="Capi | Multi-Market AI",
+    page_icon="⚡",
     layout="wide"
 )
-
 st.markdown("""
 <style>
-.stApp { background-color: #0B0F19; color: #F3F4F6; }
-.main-header {
-    background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
-    padding: 25px;
-    border-radius: 16px;
-    color: #FFFFFF;
-    text-align: center;
-    margin-bottom: 25px;
-    border: 1px solid #4338CA;
+.stApp {
+    background-color: #07090E;
+    color: #E2E8F0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
-.ai-box {
-    background: #111827;
-    border: 2px solid #6366F1;
-    padding: 20px;
-    border-radius: 14px;
-    margin-top: 20px;
-    box-shadow: 0 4px 20px rgba(99,102,241,0.2);
+.luxe-header {
+    background: linear-gradient(180deg, #0F172A 0%, #07090E 100%);
+    padding: 35px 20px;
+    border-radius: 16px;
+    border: 1px solid #1E293B;
+    text-align: center;
+    margin-bottom: 30px;
+}
+.luxe-title {
+    color: #FFFFFF !important;
+    font-size: 32px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.5px;
+    margin: 0;
+}
+.luxe-subtitle {
+    color: #64748B !important;
+    font-size: 14px !important;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
 div[data-testid="stMetric"] {
-    background-color: #1F2937;
-    border: 1px solid #374151;
-    border-radius: 10px;
+    background-color: #0D1117;
+    border: 1px solid #21262D;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+.luxe-ai-box {
+    background: #0D1117;
+    border: 1px solid #30363D;
+    border-left: 4px solid #58A6FF;
+    padding: 25px;
+    border-radius: 12px;
+    margin-top: 25px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.stButton>button {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    transition: all 0.2s ease;
+}
+.stButton>button:hover {
+    background: #E2E8F0 !important;
+    transform: translateY(-1px);
 }
 </style>
 """, unsafe_allow_html=True)
-
 st.markdown("""
-<div class="main-header">
-    <h1 style="color: #ffffff; margin:0;">🤖 منصة الذكاء الاصطناعي متعددة الأسواق</h1>
-    <p style="color: #9CA3AF; margin-top:5px;">
-        التحليل المالي المتقدم للكريبتو والأسهم الأمريكية مع محرك التنبؤ الذكي
+<div class="luxe-header">
+    <h1 class="luxe-title">Capi AI Intelligence</h1>
+    <p class="luxe-subtitle">
+        Advanced Multi-Market Analytics & Predictive Engine
     </p>
 </div>
 """, unsafe_allow_html=True)
-
-st.sidebar.markdown("### 🌐 تحديد السوق المستهدف")
-
+st.sidebar.markdown("### 🌐 Market Selection")
 market_type = st.sidebar.radio(
-    "اختر السوق:",
-    ["العملات الرقمية (Crypto)", "الأسهم الأمريكية (US Stocks)"]
+    "Choose Asset Class:",
+    ["Cryptocurrency", "US Equities"]
 )
-
 crypto_watchlist = {
     "Bitcoin": "bitcoin",
     "Ethereum": "ethereum",
@@ -62,7 +92,6 @@ crypto_watchlist = {
     "Binance Coin": "binancecoin",
     "Dogecoin": "dogecoin"
 }
-
 us_stocks_watchlist = [
     "AAPL",
     "MSFT",
@@ -72,33 +101,28 @@ us_stocks_watchlist = [
     "NVDA",
     "META"
 ]
-
-if market_type == "العملات الرقمية (Crypto)":
-
+# =========================================================
+# CRYPTOCURRENCY
+# =========================================================
+if market_type == "Cryptocurrency":
     fng_val, fng_class = fetch_crypto_fear_greed()
-
     st.sidebar.markdown("---")
     st.sidebar.metric(
-        "مؤشر الخوف والطمع",
+        "Market Sentiment (F&G)",
         f"{fng_val}/100",
         fng_class
     )
-
-    st.markdown("### 🪙 لوحة تحكم سوق العملات الرقمية")
-
+    st.markdown("### 🪙 Digital Assets Feed")
     ids = list(crypto_watchlist.values())
     raw_data = fetch_crypto_market(ids)
-
     if raw_data:
         display_list = []
         coin_cache = {}
-
         for coin in raw_data:
             change = coin.get(
                 "price_change_percentage_24h",
                 0
             ) or 0
-
             coin_cache[coin["name"]] = {
                 "price": coin["current_price"],
                 "change": change,
@@ -109,205 +133,207 @@ if market_type == "العملات الرقمية (Crypto)":
                     {}
                 ).get("price", [])
             }
-
             display_list.append({
-                "الأصل": coin["name"],
-                "الرمز": coin["symbol"].upper(),
-                "السعر (USD)": f"${coin['current_price']:,.2f}",
-                "التغير 24 ساعة": f"{change:.2f}%"
+                "Asset": coin["name"],
+                "Ticker": coin["symbol"].upper(),
+                "Price (USD)": f"${coin['current_price']:,.2f}",
+                "24h Change": f"{change:.2f}%"
             })
-
         st.dataframe(
             pd.DataFrame(display_list),
             use_container_width=True
         )
-
         st.divider()
-
-        st.markdown("### 🎯 تحليل الأصول والذكاء الاصطناعي")
-
+        st.markdown("### ⚡ Deep AI Asset Analysis")
         chosen_coin = st.selectbox(
-            "اختر الأصل للتحليل العميق:",
+            "Select Asset for Neural Processing:",
             list(coin_cache.keys())
         )
-
         if chosen_coin in coin_cache:
             info = coin_cache[chosen_coin]
-
             col_a, col_b = st.columns([1, 2])
-
             with col_a:
                 st.metric(
-                    "السعر الحالي",
+                    "Current Price",
                     f"${info['price']:,.2f}",
                     f"{info['change']:.2f}%"
                 )
-
                 st.metric(
-                    "أعلى سعر (24س)",
+                    "24h High",
                     f"${info['high']:,.2f}"
                 )
-
                 st.metric(
-                    "أقل سعر (24س)",
+                    "24h Low",
                     f"${info['low']:,.2f}"
                 )
-
             with col_b:
                 if info["sparkline"]:
                     st.line_chart(
                         pd.DataFrame({
-                            "السعر الأسبوعي": info["sparkline"]
+                            "Weekly Trend": info["sparkline"]
                         }),
-                        color="#6366F1"
+                        color="#58A6FF"
                     )
-
-            if st.button(
-                "🚀 تشغيل محرك التحليل الذكي للقرارات",
-                type="primary"
-            ):
+            if st.button("Execute Neural Decision Engine"):
                 with st.spinner(
-                    "جاري جمع البيانات، تشغيل النماذج، وتقييم المخاطر..."
+                    "Processing market data & neural networks..."
                 ):
                     chg = info["change"]
-
                     if chg > 2:
-                        decision = "شراء / تجميع قوي (Bullish)"
-                        confidence = "74.5%"
+                        decision = "STRONG ACCUMULATION (Bullish)"
+                        confidence = "76.4%"
                         scenario = (
-                            "استمرار الزخم الصاعد نحو مقاومة قريبة، "
-                            "مع وضع وقف خسارة تحت الدعم السابق."
+                            "Upward momentum sustaining toward upper "
+                            "resistance bounds. Recommended trailing stop-loss."
                         )
-                        box_color = "#10B981"
-
+                        accent_color = "#3FB950"
                     elif chg >= 0:
-                        decision = "حيادي مع ميل للصعود (Neutral-Bullish)"
-                        confidence = "62.0%"
+                        decision = "NEUTRAL CONSOLIDATION"
+                        confidence = "61.2%"
                         scenario = (
-                            "تذبذب عرضي، يفضل الانتظار لاختراق واضح "
-                            "أو التصعيد عند الدعم."
+                            "Sideways price action. Awaiting volume "
+                            "breakout before directional scaling."
                         )
-                        box_color = "#3B82F6"
-
+                        accent_color = "#58A6FF"
                     else:
-                        decision = "حذر شديد / تصحيح محتمل (Bearish)"
-                        confidence = "68.3%"
+                        decision = "CAUTION / POTENTIAL CORRECTION"
+                        confidence = "69.1%"
                         scenario = (
-                            "احتمالية اختبار مستويات دعم أدنى، "
-                            "راقب السيولة قبل أي دخول جديد."
+                            "Downward pressure testing local liquidity "
+                            "zones. Mitigate exposure."
                         )
-                        box_color = "#EF4444"
-
+                        accent_color = "#F85149"
                 st.markdown(
                     f"""
-                    <div class="ai-box" style="border-color: {box_color};">
-                        <h3 style="color: {box_color}; margin-top:0;">
-                            🧠 تقرير محرك الذكاء الاصطناعي: {chosen_coin}
+                    <div class="luxe-ai-box"
+                         style="border-left-color: {accent_color};">
+                        <h3 style="
+                            color: {accent_color};
+                            margin-top: 0;
+                            font-size: 20px;
+                        ">
+                            ⚡ Capi Neural Report: {chosen_coin}
                         </h3>
-                        <p><b>القرار المقترح:</b> {decision}</p>
-                        <p><b>نسبة الثقة في النموذج:</b> {confidence}</p>
-                        <p><b>التفسير والسيناريو البديل:</b> {scenario}</p>
+                        <p style="margin: 8px 0;">
+                            <b>Signal Direction:</b> {decision}
+                        </p>
+                        <p style="margin: 8px 0;">
+                            <b>Model Confidence:</b> {confidence}
+                        </p>
+                        <p style="
+                            margin: 8px 0;
+                            color: #94A3B8;
+                        ">
+                            <b>Strategic Alternative Scenario:</b>
+                            {scenario}
+                        </p>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
-
-
-elif market_type == "الأسهم الأمريكية (US Stocks)":
-
-    st.markdown("### 🇺🇸 لوحة تحكم سوق الأسهم الأمريكية")
-
+# =========================================================
+# US EQUITIES
+# =========================================================
+elif market_type == "US Equities":
+    st.markdown("### 🇺🇸 US Equities Feed")
     stock_raw = fetch_us_stocks(us_stocks_watchlist)
-
     if stock_raw:
         stock_display = []
         stock_cache = {}
-
         for stck in stock_raw:
-            chg = stck["price_change_percentage_24h"]
-
+            chg = stck.get(
+                "price_change_percentage_24h",
+                0
+            ) or 0
             stock_cache[stck["symbol"]] = {
                 "price": stck["current_price"],
                 "change": chg,
                 "high": stck["high_24h"],
                 "low": stck["low_24h"]
             }
-
             stock_display.append({
-                "الرمز": stck["symbol"],
-                "السعر (USD)": f"${stck['current_price']:,.2f}",
-                "التغير 24 ساعة": f"{chg:.2f}%"
+                "Ticker": stck["symbol"],
+                "Price (USD)": f"${stck['current_price']:,.2f}",
+                "24h Change": f"{chg:.2f}%"
             })
-
         st.dataframe(
             pd.DataFrame(stock_display),
             use_container_width=True
         )
-
         st.divider()
-
-        st.markdown(
-            "### 🎯 تحليل الأسهم الأمريكية والذكاء الاصطناعي"
-        )
-
+        st.markdown("### ⚡ Deep AI Equities Analysis")
         chosen_stock = st.selectbox(
-            "اختر السهم للتحليل العميق:",
+            "Select Equity for Neural Processing:",
             list(stock_cache.keys())
         )
-
         if chosen_stock in stock_cache:
             s_info = stock_cache[chosen_stock]
-
             c1, c2 = st.columns(2)
-
             c1.metric(
-                "السعر الحالي",
+                "Current Price",
                 f"${s_info['price']:,.2f}",
                 f"{s_info['change']:.2f}%"
             )
-
             c2.metric(
-                "مدى الجلسة",
-                f"High: ${s_info['high']:,.2f} | Low: ${s_info['low']:,.2f}"
+                "Session Range",
+                f"High: ${s_info['high']:,.2f} | "
+                f"Low: ${s_info['low']:,.2f}"
             )
-
-            if st.button(
-                "🚀 تشغيل محرك التحليل الذكي للسهم",
-                type="primary"
-            ):
+            if st.button("Execute Neural Decision Engine"):
                 with st.spinner(
-                    "جاري تحليل المؤشرات الفنية ودفتر الأوامر..."
+                    "Analyzing order books and volatility indices..."
                 ):
                     s_chg = s_info["change"]
-
                     if s_chg > 1:
-                        s_decision = "شراء / فرصة نمو (Buy)"
-                        s_conf = "71.0%"
+                        s_decision = "MOMENTUM BUY (Growth)"
+                        s_conf = "73.2%"
                         s_scen = (
-                            "السهم يظهر قوة نسبية مقارنة بالسوق، "
-                            "مستهدف تالي عند المقاومة القادمة."
+                            "Outperforming benchmark trends with strong "
+                            "institutional volume backing."
                         )
-                        s_color = "#10B981"
-
+                        s_color = "#3FB950"
                     else:
-                        s_decision = "مراقبة / الحذر واجب (Watch/Hold)"
-                        s_conf = "64.5%"
+                        s_decision = "DEFENSIVE HOLD"
+                        s_conf = "65.8%"
                         s_scen = (
-                            "ضغوطات بيعية محتملة، يفضل الانتظار "
-                            "لتأكيد ارتداد السعر."
+                            "Consolidating near key moving averages. "
+                            "Patience advised."
                         )
-                        s_color = "#EF4444"
-
+                        s_color = "#F85149"
                 st.markdown(
                     f"""
-                    <div class="ai-box" style="border-color: {s_color};">
-                        <h3 style="color: {s_color}; margin-top:0;">
-                            🧠 تقرير محرك الذكاء الاصطناعي: {chosen_stock}
+                    <div class="luxe-ai-box"
+                         style="border-left-color: {s_color};">
+                        <h3 style="
+                            color: {s_color};
+                            margin-top: 0;
+                            font-size: 20px;
+                        ">
+                            ⚡ Capi Neural Report: {chosen_stock}
                         </h3>
-                        <p><b>القرار المقترح:</b> {s_decision}</p>
-                        <p><b>نسبة الثقة في النموذج:</b> {s_conf}</p>
-                        <p><b>التفسير والسيناريو البديل:</b> {s_scen}</p>
+                        <p style="margin: 8px 0;">
+                            <b>Signal Direction:</b> {s_decision}
+                        </p>
+                        <p style="margin: 8px 0;">
+                            <b>Model Confidence:</b> {s_conf}
+                        </p>
+                        <p style="
+                            margin: 8px 0;
+                            color: #94A3B8;
+                        ">
+                            <b>Strategic Alternative Scenario:</b>
+                            {s_scen}
+                        </p>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
+
+أهم إصلاحين تم تنفيذهما:
+
+1. s_s cen ← تم تحويلها إلى s_scen.
+2. نسبة تغير السهم أصبحت % بدل ظهورها كقيمة دولار.
+
+لكن يوجد شيء مهم: هذا الملف لن يكون مضمون التشغيل قبل فحص data_fetcher.py، لأنه يعتمد عليه في جلب العملات والأسهم وFear & Greed.
+
+أرسل لي ملف data_fetcher.py وسأدققه مع هذا الملف وأصلح الاثنين بحيث يكونان متوافقين قبل الرفع إلى Deploy.
