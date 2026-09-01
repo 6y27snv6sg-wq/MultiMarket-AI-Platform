@@ -1,11 +1,33 @@
+
 import requests
 import streamlit as st
 
 
 REQUEST_TIMEOUT = 15
-
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 YAHOO_BASE = "https://query1.finance.yahoo.com"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Capi Decision Intelligence)"
+}
+
+
+def _get_json(url, params=None):
+    try:
+        response = requests.get(
+            url,
+            params=params,
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
+    except (
+        requests.RequestException,
+        ValueError,
+        TypeError,
+    ):
+        return None
 
 
 @st.cache_data(ttl=300)
@@ -13,32 +35,23 @@ def search_crypto(query):
     if not query:
         return []
 
-    try:
-        response = requests.get(
-            f"{COINGECKO_BASE}/search",
-            params={"query": query},
-            timeout=REQUEST_TIMEOUT,
-        )
+    data = _get_json(
+        f"{COINGECKO_BASE}/search",
+        {"query": query},
+    )
 
-        response.raise_for_status()
-
-        data = response.json()
-        coins = data.get("coins", [])
-
-        results = []
-
-        for coin in coins[:10]:
-            if coin.get("id") and coin.get("name"):
-                results.append({
-                    "id": coin["id"],
-                    "name": coin["name"],
-                    "symbol": coin.get("symbol", ""),
-                })
-
-        return results
-
-    except Exception:
+    if not data:
         return []
+
+    results = []
+    for coin in data.get("coins", [])[:10]:
+        if coin.get("id") and coin.get("name"):
+            results.append({
+                "id": coin["id"],
+                "name": coin["name"],
+                "symbol": coin.get("symbol", ""),
+            })
+    return results
 
 
 @st.cache_data(ttl=60)
@@ -46,78 +59,71 @@ def fetch_crypto_market(coin_ids):
     if not coin_ids:
         return []
 
-    try:
-        response = requests.get(
-            f"{COINGECKO_BASE}/coins/markets",
-            params={
-                "vs_currency": "usd",
-                "ids": ",".join(coin_ids),
-                "order": "market_cap_desc",
-                "sparkline": "false",
-            },
-            timeout=REQUEST_TIMEOUT,
-        )
+    data = _get_json(
+        f"{COINGECKO_BASE}/coins/markets",
+        {
+            "vs_currency": "usd",
+            "ids": ",".join(coin_ids),
+            "order": "market_cap_desc",
+            "sparkline": "false",
+            "price_change_percentage": "24h",
+        },
+    )
 
-        response.raise_for_status()
-
-        data = response.json()
-
-        return data if isinstance(data, list) else []
-
-    except Exception:
-        return []
+    return data if isinstance(data, list) else []
 
 
 @st.cache_data(ttl=300)
-def fetch_crypto_history(coin_id):
+def fetch_crypto_ohlc(coin_id):
     if not coin_id:
         return []
 
-    try:
-        response = requests.get(
-            f"{COINGECKO_BASE}/coins/{coin_id}/market_chart",
-            params={
-                "vs_currency": "usd",
-                "days": "7",
-                "interval": "hourly",
-            },
-            timeout=REQUEST_TIMEOUT,
-        )
+    data = _get_json(
+        f"{COINGECKO_BASE}/coins/{coin_id}/ohlc",
+        {
+            "vs_currency": "usd",
+            "days": "7",
+        },
+    )
 
-        response.raise_for_status()
-
-        data = response.json()
-        prices = data.get("prices", [])
-
-        return [
-            {
-                "timestamp": item[0] / 1000,
-                "price": item[1],
-            }
-            for item in prices
-            if len(item) >= 2
-        ]
-
-    except Exception:
+    if not isinstance(data, list):
         return []
+
+    result = []
+    for row in data:
+        if len(row) >= 5:
+            result.append({
+                "timestamp": row[0] / 1000,
+                "open": row[1],
+                "high": row[2],
+                "low": row[3],
+                "close": row[4],
+            })
+    return result
 
 
 @st.cache_data(ttl=300)
 def fetch_crypto_global():
-    try:
-        response = requests.get(
-            f"{COINGECKO_BASE}/global",
-            timeout=REQUEST_TIMEOUT,
+    data = _get_json(
+        f"{COINGECKO_BASE}/global"
+    )
+    return data.get("data", {}) if data else {}
+
+
+@st.cache_data(ttl=300)
+def fetch_crypto_fear_greed():
+    data = _get_json(
+        "https://api.alternative.me/fng/"
+    )
+
+    if data and data.get("data"):
+        item = data["data"][0]
+        return (
+            item.get("value", "50"),
+            item.get("value_classification", "Neutral"),
         )
 
-        response.raise_for_status()
-
-        data = response.json()
-
-        return data.get("data", {})
-
-    except Exception:
-        return {}
+    return "50", "Neutral"
 
 
 @st.cache_data(ttl=300)
@@ -128,38 +134,30 @@ def fetch_us_stocks(tickers):
     results = []
 
     for ticker in tickers:
+        ticker = str(ticker).strip().upper()
+
+        if not ticker:
+            continue
+
+        data = _get_json(
+            f"{YAHOO_BASE}/v8/finance/chart/{ticker}",
+            {
+                "interval": "1d",
+                "range": "5d",
+            },
+        )
+
+        if not data:
+            continue
 
         try:
-            ticker = ticker.strip().upper()
-
-            response = requests.get(
-                f"{YAHOO_BASE}/v8/finance/chart/{ticker}",
-                params={
-                    "interval": "1d",
-                    "range": "5d",
-                },
-                headers={
-                    "User-Agent": "Mozilla/5.0",
-                },
-                timeout=REQUEST_TIMEOUT,
-            )
-
-            response.raise_for_status()
-
-            data = response.json()
-
-            chart = data.get("chart", {})
-            result = chart.get("result")
-
-            if not result:
-                continue
-
-            meta = result[0].get("meta", {})
+            result = data["chart"]["result"][0]
+            meta = result.get("meta", {})
 
             price = meta.get("regularMarketPrice")
             previous = meta.get("chartPreviousClose")
 
-            if price is None or not previous:
+            if price is None or previous in (None, 0):
                 continue
 
             change = ((price - previous) / previous) * 100
@@ -182,7 +180,12 @@ def fetch_us_stocks(tickers):
                 ),
             })
 
-        except Exception:
+        except (
+            KeyError,
+            IndexError,
+            TypeError,
+            ValueError,
+        ):
             continue
 
     return results
@@ -190,88 +193,143 @@ def fetch_us_stocks(tickers):
 
 @st.cache_data(ttl=300)
 def fetch_stock_history(ticker):
+    ticker = str(ticker).strip().upper()
+
     if not ticker:
         return []
 
+    data = _get_json(
+        f"{YAHOO_BASE}/v8/finance/chart/{ticker}",
+        {
+            "interval": "1d",
+            "range": "6mo",
+        },
+    )
+
+    if not data:
+        return []
+
     try:
-        ticker = ticker.strip().upper()
-
-        response = requests.get(
-            f"{YAHOO_BASE}/v8/finance/chart/{ticker}",
-            params={
-                "interval": "1h",
-                "range": "1mo",
-            },
-            headers={
-                "User-Agent": "Mozilla/5.0",
-            },
-            timeout=REQUEST_TIMEOUT,
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        result = data.get("chart", {}).get("result")
-
-        if not result:
-            return []
-
-        result = result[0]
-
+        result = data["chart"]["result"][0]
         timestamps = result.get("timestamp", [])
-
-        quotes = (
+        quote = (
             result
             .get("indicators", {})
-            .get("quote", [])
+            .get("quote", [{}])[0]
         )
 
-        if not quotes:
-            return []
+        opens = quote.get("open", [])
+        highs = quote.get("high", [])
+        lows = quote.get("low", [])
+        closes = quote.get("close", [])
+        volumes = quote.get("volume", [])
 
-        closes = quotes[0].get("close", [])
+        output = []
 
-        history = []
+        for i, timestamp in enumerate(timestamps):
+            values = [
+                opens[i] if i < len(opens) else None,
+                highs[i] if i < len(highs) else None,
+                lows[i] if i < len(lows) else None,
+                closes[i] if i < len(closes) else None,
+            ]
 
-        for timestamp, close in zip(
-            timestamps,
-            closes,
-        ):
-            if close is not None:
-                history.append({
-                    "timestamp": timestamp,
-                    "price": close,
-                })
+            if any(v is None for v in values):
+                continue
 
-        return history
+            output.append({
+                "timestamp": timestamp,
+                "open": values[0],
+                "high": values[1],
+                "low": values[2],
+                "close": values[3],
+                "volume": (
+                    volumes[i]
+                    if i < len(volumes)
+                    and volumes[i] is not None
+                    else 0
+                ),
+            })
 
-    except Exception:
+        return output
+
+    except (
+        KeyError,
+        IndexError,
+        TypeError,
+        ValueError,
+    ):
         return []
 
 
+SECTOR_MAP = {
+    "AAPL": ("Technology", "XLK"),
+    "MSFT": ("Technology", "XLK"),
+    "NVDA": ("Technology", "XLK"),
+    "AVGO": ("Technology", "XLK"),
+    "AMD": ("Technology", "XLK"),
+    "GOOGL": ("Communication Services", "XLC"),
+    "META": ("Communication Services", "XLC"),
+    "AMZN": ("Consumer Discretionary", "XLY"),
+    "TSLA": ("Consumer Discretionary", "XLY"),
+    "JPM": ("Financials", "XLF"),
+    "BAC": ("Financials", "XLF"),
+    "WMT": ("Consumer Staples", "XLP"),
+    "JNJ": ("Healthcare", "XLV"),
+    "UNH": ("Healthcare", "XLV"),
+    "XOM": ("Energy", "XLE"),
+    "CVX": ("Energy", "XLE"),
+    "CAT": ("Industrials", "XLI"),
+    "LIN": ("Materials", "XLB"),
+    "PLD": ("Real Estate", "XLRE"),
+    "NEE": ("Utilities", "XLU"),
+}
+
+
 @st.cache_data(ttl=300)
-def fetch_crypto_fear_greed():
-    try:
-        response = requests.get(
-            "https://api.alternative.me/fng/",
-            timeout=REQUEST_TIMEOUT,
-        )
+def fetch_etf_data(symbol):
+    rows = fetch_us_stocks([symbol])
+    if not rows:
+        return None
 
-        response.raise_for_status()
+    row = rows[0]
 
-        data = response.json().get("data", [])
+    return {
+        "symbol": symbol,
+        "price": row["current_price"],
+        "change": row["price_change_percentage_24h"],
+    }
 
-        if data:
-            return (
-                data[0].get("value", "50"),
-                data[0].get(
-                    "value_classification",
-                    "Neutral",
-                ),
-            )
 
-    except Exception:
-        pass
+@st.cache_data(ttl=300)
+def fetch_sector_data(ticker):
+    ticker = str(ticker).strip().upper()
 
-    return "50", "Neutral"
+    sector_name, etf = SECTOR_MAP.get(
+        ticker,
+        ("Broad Market", "SPY"),
+    )
+
+    etf_rows = fetch_us_stocks([etf])
+
+    if not etf_rows:
+        return {
+            "name": sector_name,
+            "etf": etf,
+            "score": 50,
+            "relative_change": 0.0,
+        }
+
+    etf_change = etf_rows[0]["price_change_percentage_24h"]
+
+    score = 50 + max(
+        -40,
+        min(40, etf_change * 8),
+    )
+
+    return {
+        "name": sector_name,
+        "etf": etf,
+        "score": int(round(score)),
+        "relative_change": etf_change,
+    }
