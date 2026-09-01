@@ -4,82 +4,49 @@ import streamlit as st
 
 REQUEST_TIMEOUT = 15
 
-COINGECKO_BASE = (
-    "https://api.coingecko.com/api/v3"
-)
+COINGECKO_BASE = "https://api.coingecko.com/api/v3"
+YAHOO_BASE = "https://query1.finance.yahoo.com"
 
-YAHOO_BASE = (
-    "https://query1.finance.yahoo.com"
-)
-
-
-# =========================================================
-# CRYPTO SEARCH
-# =========================================================
 
 @st.cache_data(ttl=300)
 def search_crypto(query):
-
     if not query:
         return []
 
     try:
-
         response = requests.get(
             f"{COINGECKO_BASE}/search",
-            params={
-                "query": query
-            },
+            params={"query": query},
             timeout=REQUEST_TIMEOUT,
         )
 
         response.raise_for_status()
 
-        payload = response.json()
-
-        coins = payload.get(
-            "coins",
-            [],
-        )
+        data = response.json()
+        coins = data.get("coins", [])
 
         results = []
 
         for coin in coins[:10]:
-
-            coin_id = coin.get("id")
-            name = coin.get("name")
-            symbol = coin.get("symbol")
-
-            if coin_id and name and symbol:
-
+            if coin.get("id") and coin.get("name"):
                 results.append({
-                    "id": coin_id,
-                    "name": name,
-                    "symbol": symbol,
+                    "id": coin["id"],
+                    "name": coin["name"],
+                    "symbol": coin.get("symbol", ""),
                 })
 
         return results
 
-    except (
-        requests.RequestException,
-        ValueError,
-        TypeError,
-    ):
+    except Exception:
         return []
 
 
-# =========================================================
-# CRYPTO MARKET
-# =========================================================
-
 @st.cache_data(ttl=60)
 def fetch_crypto_market(coin_ids):
-
     if not coin_ids:
         return []
 
     try:
-
         response = requests.get(
             f"{COINGECKO_BASE}/coins/markets",
             params={
@@ -95,31 +62,18 @@ def fetch_crypto_market(coin_ids):
 
         data = response.json()
 
-        if isinstance(data, list):
-            return data
+        return data if isinstance(data, list) else []
 
-    except (
-        requests.RequestException,
-        ValueError,
-        TypeError,
-    ):
+    except Exception:
         return []
 
-    return []
-
-
-# =========================================================
-# CRYPTO HISTORY
-# =========================================================
 
 @st.cache_data(ttl=300)
 def fetch_crypto_history(coin_id):
-
     if not coin_id:
         return []
 
     try:
-
         response = requests.get(
             f"{COINGECKO_BASE}/coins/{coin_id}/market_chart",
             params={
@@ -132,43 +86,25 @@ def fetch_crypto_history(coin_id):
 
         response.raise_for_status()
 
-        payload = response.json()
+        data = response.json()
+        prices = data.get("prices", [])
 
-        prices = payload.get(
-            "prices",
-            [],
-        )
+        return [
+            {
+                "timestamp": item[0] / 1000,
+                "price": item[1],
+            }
+            for item in prices
+            if len(item) >= 2
+        ]
 
-        result = []
-
-        for item in prices:
-
-            if len(item) >= 2:
-
-                result.append({
-                    "timestamp": item[0] / 1000,
-                    "price": item[1],
-                })
-
-        return result
-
-    except (
-        requests.RequestException,
-        ValueError,
-        TypeError,
-    ):
+    except Exception:
         return []
 
 
-# =========================================================
-# CRYPTO GLOBAL
-# =========================================================
-
 @st.cache_data(ttl=300)
 def fetch_crypto_global():
-
     try:
-
         response = requests.get(
             f"{COINGECKO_BASE}/global",
             timeout=REQUEST_TIMEOUT,
@@ -176,28 +112,16 @@ def fetch_crypto_global():
 
         response.raise_for_status()
 
-        payload = response.json()
+        data = response.json()
 
-        return payload.get(
-            "data",
-            {},
-        )
+        return data.get("data", {})
 
-    except (
-        requests.RequestException,
-        ValueError,
-        TypeError,
-    ):
+    except Exception:
         return {}
 
 
-# =========================================================
-# US STOCKS
-# =========================================================
-
 @st.cache_data(ttl=300)
 def fetch_us_stocks(tickers):
-
     if not tickers:
         return []
 
@@ -206,11 +130,7 @@ def fetch_us_stocks(tickers):
     for ticker in tickers:
 
         try:
-
             ticker = ticker.strip().upper()
-
-            if not ticker:
-                continue
 
             response = requests.get(
                 f"{YAHOO_BASE}/v8/finance/chart/{ticker}",
@@ -226,46 +146,23 @@ def fetch_us_stocks(tickers):
 
             response.raise_for_status()
 
-            payload = response.json()
+            data = response.json()
 
-            chart = payload.get(
-                "chart",
-                {},
-            )
+            chart = data.get("chart", {})
+            result = chart.get("result")
 
-            data = chart.get(
-                "result"
-            )
-
-            if not data:
+            if not result:
                 continue
 
-            meta = data[0].get(
-                "meta",
-                {},
-            )
+            meta = result[0].get("meta", {})
 
-            price = meta.get(
-                "regularMarketPrice"
-            )
+            price = meta.get("regularMarketPrice")
+            previous = meta.get("chartPreviousClose")
 
-            previous_close = meta.get(
-                "chartPreviousClose"
-            )
-
-            if price is None:
+            if price is None or not previous:
                 continue
 
-            if previous_close in (
-                None,
-                0,
-            ):
-                continue
-
-            change = (
-                (price - previous_close)
-                / previous_close
-            ) * 100
+            change = ((price - previous) / previous) * 100
 
             results.append({
                 "symbol": ticker,
@@ -285,30 +182,18 @@ def fetch_us_stocks(tickers):
                 ),
             })
 
-        except (
-            requests.RequestException,
-            ValueError,
-            TypeError,
-            KeyError,
-            IndexError,
-        ):
+        except Exception:
             continue
 
     return results
 
 
-# =========================================================
-# STOCK HISTORY
-# =========================================================
-
 @st.cache_data(ttl=300)
 def fetch_stock_history(ticker):
-
     if not ticker:
         return []
 
     try:
-
         ticker = ticker.strip().upper()
 
         response = requests.get(
@@ -325,76 +210,49 @@ def fetch_stock_history(ticker):
 
         response.raise_for_status()
 
-        payload = response.json()
+        data = response.json()
 
-        chart = payload.get(
-            "chart",
-            {},
-        )
+        result = data.get("chart", {}).get("result")
 
-        results = chart.get(
-            "result"
-        )
-
-        if not results:
+        if not result:
             return []
 
-        result = results[0]
+        result = result[0]
 
-        timestamps = result.get(
-            "timestamp",
-            [],
-        )
+        timestamps = result.get("timestamp", [])
 
-        quote = (
+        quotes = (
             result
             .get("indicators", {})
             .get("quote", [])
         )
 
-        if not quote:
+        if not quotes:
             return []
 
-        closes = quote[0].get(
-            "close",
-            [],
-        )
+        closes = quotes[0].get("close", [])
 
-        output = []
+        history = []
 
         for timestamp, close in zip(
             timestamps,
             closes,
         ):
-
             if close is not None:
-
-                output.append({
+                history.append({
                     "timestamp": timestamp,
                     "price": close,
                 })
 
-        return output
+        return history
 
-    except (
-        requests.RequestException,
-        ValueError,
-        TypeError,
-        KeyError,
-        IndexError,
-    ):
+    except Exception:
         return []
 
 
-# =========================================================
-# FEAR & GREED
-# =========================================================
-
 @st.cache_data(ttl=300)
 def fetch_crypto_fear_greed():
-
     try:
-
         response = requests.get(
             "https://api.alternative.me/fng/",
             timeout=REQUEST_TIMEOUT,
@@ -402,35 +260,18 @@ def fetch_crypto_fear_greed():
 
         response.raise_for_status()
 
-        payload = response.json()
-
-        data = payload.get(
-            "data",
-            [],
-        )
+        data = response.json().get("data", [])
 
         if data:
-
-            item = data[0]
-
             return (
-                item.get(
-                    "value",
-                    "50",
-                ),
-                item.get(
+                data[0].get("value", "50"),
+                data[0].get(
                     "value_classification",
                     "Neutral",
                 ),
             )
 
-    except (
-        requests.RequestException,
-        ValueError,
-        TypeError,
-        KeyError,
-        IndexError,
-    ):
+    except Exception:
         pass
 
     return "50", "Neutral"
