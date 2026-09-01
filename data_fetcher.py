@@ -1,19 +1,13 @@
-
+```
 import requests
 import pandas as pd
 import streamlit as st
 
 @st.cache_data(ttl=60)
 def fetch_crypto_market(coin_ids):
-    url = "https://api.coingecko.com/api/v3/coins/markets"
-    params = {
-        "vs_currency": "usd",
-        "ids": ",".join(coin_ids),
-        "order": "market_cap_desc",
-        "sparkline": "true"
-    }
+    url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={','.join(coin_ids)}&order=market_cap_desc&sparkline=true"
     try:
-        res = requests.get(url, params=params)
+        res = requests.get(url)
         if res.status_code == 200:
             return res.json()
     except:
@@ -26,17 +20,14 @@ def fetch_us_stocks(tickers):
     for ticker in tickers:
         try:
             url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            res = requests.get(url, headers=headers)
+            res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
             if res.status_code == 200:
-                data = res.json()
-                meta = data['chart']['result'][0]['meta']
+                meta = res.json()['chart']['result'][0]['meta']
                 price = meta['regularMarketPrice']
-                prev_close = meta['chartPreviousClose']
-                change = ((price - prev_close) / prev_close) * 100
+                prev = meta['chartPreviousClose']
+                change = ((price - prev) / prev) * 100
                 stock_data.append({
                     "symbol": ticker,
-                    "name": ticker,
                     "current_price": price,
                     "price_change_percentage_24h": change,
                     "high_24h": meta.get('regularMarketDayHigh', price),
